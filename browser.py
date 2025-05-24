@@ -10,16 +10,13 @@ class URL:
     isFile = False
 
     @staticmethod
-    def fileserver(url):
-        path = url
+    def fileserver(path):
         os.chdir(path)
         PORT = 8000
         Handler = http.server.SimpleHTTPRequestHandler
         with socketserver.TCPServer(("", PORT), Handler) as httpd:
             print(f"Serving at http://localhost:{PORT}/ from {path}")
             httpd.serve_forever()
-        thread = threading.Thread(target=serve, daemon=True)
-        thread.start()
 
     def __init__(self, url):
         self.scheme, url = url.split("://", 1)
