@@ -1,13 +1,16 @@
+import base64
 import http.server
 import os
 import socket
 import socketserver
 import ssl
 import threading
+import urllib.parse
 
 
 class URL:
     isFile = False
+    is_base64 = False
 
     @staticmethod
     def fileserver(path):
@@ -19,16 +22,30 @@ class URL:
             httpd.serve_forever()
 
     def __init__(self, url):
-        self.scheme, url = url.split("://", 1)
-        assert self.scheme in ["http", "https", "file"]
+        self.scheme, url = url.split(":", 1)
+        assert self.scheme in ["http", "https", "file", "data"]
         if self.scheme == "http":
             self.port = 80
         elif self.scheme == "https":
             self.port = 443
         elif self.scheme == "file":
             URL.isFile = True
+            url = url.strip("/", 2)
             self.fileserver(url)
             return
+        elif self.scheme == "data":
+            self.host = None
+            self.port = None
+            metadata, self.content = url.split(",", 1)
+            self.mediatype = "text/plain"
+            if ";" in self.mediatype:
+                parts = metadata.split(";")
+                self.mediatype = parts[0] if parts[0] else "text/plain"
+                URL.is_base64 = "base64" in parts
+            elif metadata:
+                self.mediatype = metadata
+            return
+        url = url.strip("/", 2)
         if "/" not in url:
             url = url + "/"
         self.host, url = url.split("/", 1)
@@ -38,6 +55,13 @@ class URL:
         self.path = "/" + url
 
     def request(self):
+        if self.scheme == "data":
+            data = self.content
+            if URL.is_base64:
+                decoded = base64.b64decode(data)
+                return decoded.decode("utf8", errors="replace")
+            else:
+                return urllib.parse.unquote(data)
         s = socket.socket(
             family=socket.AF_INET, type=socket.SOCK_STREAM, proto=socket.IPPROTO_TCP
         )
@@ -94,4 +118,8 @@ class URL:
 if __name__ == "__main__":
     import sys
 
-    URL.load(URL(sys.argv[1]))
+    if len(sys.argv) < 2:
+        URL.fileserver("/home/conste/repos/mini-browser/")
+        # URL.load(URL("http://localhost:8000/index.html"))
+    else:
+        URL.load(URL(sys.argv[1]))
